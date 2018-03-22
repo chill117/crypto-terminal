@@ -490,5 +490,155 @@ app.paymentMethods.monero = (function() {
 			}
 		},
 
+		/*
+	this.generate_key_derivation = function(pub, sec) {
+	    if (pub.length !== 64 || sec.length !== 64) {
+	        throw "Invalid input length";
+	    }
+	    var pub_b = hextobin(pub);
+	    var sec_b = hextobin(sec);
+	    var pub_m = Module._malloc(KEY_SIZE);
+	    Module.HEAPU8.set(pub_b, pub_m);
+	    var sec_m = Module._malloc(KEY_SIZE);
+	    Module.HEAPU8.set(sec_b, sec_m);
+	    var ge_p3_m = Module._malloc(STRUCT_SIZES.GE_P3);
+	    var ge_p2_m = Module._malloc(STRUCT_SIZES.GE_P2);
+	    var ge_p1p1_m = Module._malloc(STRUCT_SIZES.GE_P1P1);
+	    if (Module.ccall("ge_frombytes_vartime", "bool", ["number", "number"], [ge_p3_m, pub_m]) !== 0) {
+	        throw "ge_frombytes_vartime returned non-zero error code";
+	    }
+	    Module.ccall("ge_scalarmult", "void", ["number", "number", "number"], [ge_p2_m, sec_m, ge_p3_m]);
+	    Module.ccall("ge_mul8", "void", ["number", "number"], [ge_p1p1_m, ge_p2_m]);
+	    Module.ccall("ge_p1p1_to_p2", "void", ["number", "number"], [ge_p2_m, ge_p1p1_m]);
+	    var derivation_m = Module._malloc(KEY_SIZE);
+	    Module.ccall("ge_tobytes", "void", ["number", "number"], [derivation_m, ge_p2_m]);
+	    var res = Module.HEAPU8.subarray(derivation_m, derivation_m + KEY_SIZE);
+	    Module._free(pub_m);
+	    Module._free(sec_m);
+	    Module._free(ge_p3_m);
+	    Module._free(ge_p2_m);
+	    Module._free(ge_p1p1_m);
+	    Module._free(derivation_m);
+	    return bintohex(res);
+	};
+		*/
+		decryptPaymentId: function(encryptedPaymentId, txPublicKey) {
+
+			var privateViewKey = app.settings.get(this.ref + '.privateViewKey');
+			var decryptionKey = keccak256(
+				Buffer.from(
+					BigInteger.fromHex(txPublicKey)
+						.multiply(BigInteger.fromHex(privateViewKey))
+						.multiply(BigInteger.fromHex('08'))
+						.toBuffer()
+				).toString('hex') + '8d'
+			);
+			return this.xor(encryptedPaymentId, decryptionKey);
+		},
+
+		// Buffer.from((new elliptic.eddsa('ed25519')).keyFromSecret(app.settings.get('monero.privateViewKey')).getPublic()).toString('hex')
+
+		/*
+        var input = hextobin(sec);
+        if (input.length !== 32) {
+            throw "Invalid input length";
+        }
+        var input_mem = Module._malloc(KEY_SIZE);
+        Module.HEAPU8.set(input, input_mem);
+        var ge_p3 = Module._malloc(STRUCT_SIZES.GE_P3);
+        var out_mem = Module._malloc(KEY_SIZE);
+        Module.ccall('ge_scalarmult_base', 'void', ['number', 'number'], [ge_p3, input_mem]);
+        Module.ccall('ge_p3_tobytes', 'void', ['number', 'number'], [out_mem, ge_p3]);
+        var output = Module.HEAPU8.subarray(out_mem, out_mem + KEY_SIZE);
+        Module._free(ge_p3);
+        Module._free(input_mem);
+        Module._free(out_mem);
+        return bintohex(output);
+		*/
+
+		// var decryptedId = hex_xor(extra.paymentId, cn_fast_hash(der + "8d").slice(0,16));
+		/*
+		function(hex1, hex2) {
+		    if (!hex1 || !hex2 || hex1.length !== hex2.length || hex1.length % 2 !== 0 || hex2.length % 2 !== 0){throw "Hex string(s) is/are invalid!";}
+		    var bin1 = hextobin(hex1);
+		    var bin2 = hextobin(hex2);
+		    var xor = new Uint8Array(bin1.length);
+		    for (i = 0; i < xor.length; i++){
+		        xor[i] = bin1[i] ^ bin2[i];
+		    }
+		    return bintohex(xor);
+		};
+		*/
+
+		xor: function(hex1, hex2) {
+			var a = Buffer.from(hex1, 'hex');
+			var b = Buffer.from(hex2.substr(0, hex1.length), 'hex');
+			var result = [];
+			for (var index = 0; index < a.length; index++) {
+				result.push(a[index] ^ b[index]);
+			}
+			return Buffer.from(result).toString('hex');
+		},
+
+		/*
+			See:
+			https://cryptonote.org/cns/cns005.txt
+		*/
+		parseExtraField: function(extra) {
+
+			var publicKey, paymentId, nonceLength, nonceType;
+			var tag = extra.substr(0, 2);
+
+			switch (tag) {
+
+				case '00':
+					// Just padding.
+					break;
+
+				case '01':
+					// The next 32 bytes is the transaction public key.
+					publicKey = extra.substr(2, 64);
+					nonceType = extra.substr(70, 2);
+					// Might also contain the payment ID.
+					if (
+						extra.substr(66, 2) === '02' &&
+						(nonceType === '00' || nonceType === '01')
+					) {
+						/*
+							Nonce types:
+							0 = 32 byte unencrypted payment id
+							1 = 8 byte encrypted payment id
+						*/
+						nonceLength = nonceType === '00' ? 64 : 16;
+						paymentId = extra.substr(72, nonceLength);
+					}
+					break;
+
+				case '02':
+					nonceType = extra.substr(4, 2);
+					if (nonceType === '00' || nonceType === '01') {
+						/*
+							Nonce types:
+							0 = 32 byte unencrypted payment id
+							1 = 8 byte encrypted payment id
+						*/
+						nonceLength = nonceType === '00' ? 64 : 16;
+						paymentId = extra.substr(6, nonceLength);
+					} else {
+						nonceLength = 0;
+					}
+					var offset = 6 + nonceLength;
+					if (extra.substr(offset, 2) === '01') {
+						publicKey = extra.substr(offset + 2, 64);
+					}
+					break;
+			}
+
+			return {
+				paymentId: paymentId || null,
+				publicKey: publicKey || null,
+			};
+		},
+
 	});
 })();
