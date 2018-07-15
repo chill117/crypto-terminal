@@ -177,6 +177,14 @@ $(BUILD_DEPS)/js/QRCode.min.js: $(BUILD_DEPS)/js/QRCode.js
 $(BUILD_DEPS)/js/querystring.min.js: $(BUILD_DEPS)/js/querystring.js
 	$(BIN)/uglifyjs $^ -o $@
 
+$(BUILD_DEPS)/js/Web3.js: node_modules/web3/src/index.js
+	mkdir -p $(BUILD_DEPS)/js
+	$(BIN)/browserify \
+		--entry $^ \
+		 --standalone $$(basename $@ .js) \
+		--transform [ babelify --presets [ @babel/preset-env ] ] \
+		--outfile $@
+
 DEPS_JS_FILES=node_modules/core-js/client/shim.min.js\
 node_modules/async/dist/async.min.js\
 node_modules/bignumber.js/bignumber.min.js\
@@ -194,6 +202,7 @@ $(BUILD_DEPS)/js/Buffer.min.js\
 $(BUILD_DEPS)/js/ecurve.min.js\
 $(BUILD_DEPS)/js/QRCode.min.js\
 $(BUILD_DEPS)/js/querystring.min.js\
+$(BUILD_DEPS)/js/Web3.js\
 third-party/sjcl/sjcl.min.js\
 third-party/monero/crypto.js\
 node_modules/moment/min/moment-with-locales.min.js
@@ -233,6 +242,7 @@ $(JS)/views/*.js\
 $(JS)/payment-methods/bitcoin.js\
 $(JS)/payment-methods/bitcoin-testnet.js\
 $(JS)/payment-methods/bitcoin-lightning.js\
+$(JS)/payment-methods/ethereum.js\
 $(JS)/payment-methods/litecoin.js\
 $(JS)/payment-methods/monero.js\
 $(JS)/config.js\

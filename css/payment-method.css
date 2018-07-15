@@ -23,6 +23,14 @@
 .payment-method.monero {
 	background-image: url('../images/monero.svg');
 }
+.payment-method.ethereum {
+	background-image: url('../images/ethereum.svg');
+	background-size: 3rem;
+}
+.view.getting-started .getting-started-choose-payment-methods .form-group.configurableCryptoCurrencies .button.payment-method.ethereum,
+.view.admin .form-group.configurableCryptoCurrencies .button.payment-method.ethereum {
+	background-size: 2rem;
+}
 .payment-method.bitcoinTestnet:after,
 .payment-method.litecoinTestnet:after {
 	position: absolute;

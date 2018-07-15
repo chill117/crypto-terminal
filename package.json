@@ -89,6 +89,7 @@
     "serve-static": "1.13.2",
     "uglify-js": "3.4.9",
     "underscore": "1.9.1",
+    "web3": "1.0.0-beta.36",
     "ws": "6.1.2"
   },
   "cordova": {
